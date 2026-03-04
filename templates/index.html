@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Smart Study Planner</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body class="bg-light">
+
+<div class="container mt-5">
+
+    <div class="card shadow p-4">
+        <h1 class="text-center mb-4">📚 Smart Study Planner</h1>
+
+        <div class="row">
+            <div class="col-md-6">
+                <h4>Tambah Target</h4>
+                <form method="POST">
+                    <div class="mb-2">
+                        <input type="text" class="form-control" name="nama" placeholder="Nama Target">
+                    </div>
+                    <div class="mb-2">
+                        <input type="number" class="form-control" name="total_jam" placeholder="Total Jam">
+                    </div>
+                    <div class="mb-2">
+                        <input type="date" class="form-control" name="deadline" required>
+                    </div>
+                    <button name="aksi" value="tambah" class="btn btn-primary w-100">Tambah</button>
+                </form>
+            </div>
+
+            <div class="col-md-6">
+                <h4>Daftar Target</h4>
+                <ul class="list-group">
+    {% for nama, data in targets.items() %}
+        {% set progress = (data.jam_terkumpul / data.total_jam) * 100 %}
+
+        <li class="list-group-item">
+            <strong>{{ nama }}</strong><br>
+
+            Progress: {{ data.jam_terkumpul }} / {{ data.total_jam }} jam
+
+            <div class="progress my-2">
+                <div class="progress-bar" style="width: {{ progress }}%">
+                    {{ progress|round(1) }}%
+                </div>
+            </div>
+
+            Sisa hari: {{ data.sisa_hari }} hari<br>
+            Rekomendasi belajar per hari: {{ data.rekomendasi|round(1) }} jam
+            Status:
+            {% if data.status == "On Track" %}
+                <span class="badge bg-success">{{ data.status }}</span>
+            {% elif data.status == "Perlu Ditingkatkan" %}
+                <span class="badge bg-warning text-dark">{{ data.status }}</span>
+            {% elif data.status == "Tertinggal" %}
+                <span class="badge bg-danger">{{ data.status }}</span>
+            {% else %}
+                <span class="badge bg-dark">{{ data.status }}</span>
+            {% endif %}
+
+            <form action="/update/{{ nama }}" method="post" class="mt-2 d-flex">
+                <input type="number" name="tambah_jam" class="form-control me-2" placeholder="Tambah jam" required>
+                <button class="btn btn-success btn-sm">Tambah</button>
+            </form>
+
+            <a href="/hapus/{{ nama }}" class="btn btn-danger btn-sm mt-2">Hapus</a>
+        </li>
+    {% endfor %}
+</ul>
+            </div>
+        </div>
+
+        <h4 class="mt-4">📊 Grafik Progress</h4>
+        <canvas id="progressChart"></canvas>
+
+        <hr>
+
+        <h4>Hitung Rencana</h4>
+        <form method="POST" class="row g-2">
+            <div class="col-md-8">
+                <input type="number" step="0.1" class="form-control" name="waktu_luang" placeholder="Waktu luang per hari (jam)">
+            </div>
+            <div class="col-md-4">
+                <button name="aksi" value="hitung" class="btn btn-success w-100">Hitung</button>
+            </div>
+        </form>
+
+        <div class="mt-3">
+            <p><strong>Total kebutuhan:</strong> {{ total_kebutuhan }}</p>
+            <p class="fw-bold">{{ hasil }}</p>
+        </div>
+
+    </div>
+
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+    const ctx = document.getElementById('progressChart');
+
+    const data = {
+        labels: [
+            {% for nama in targets %}
+                "{{ nama }}",
+            {% endfor %}
+        ],
+        datasets: [{
+            label: 'Progress (%)',
+            data: [
+                {% for nama, data in targets.items() %}
+                    {{ ((data.jam_terkumpul / data.total_jam) * 100)|round(1) }},
+                {% endfor %}
+            ],
+            borderWidth: 1
+        }]
+    };
+
+    new Chart(ctx, {
+        type: 'bar',
+        data: data,
+    });
+</script>
+</body>
+</html>
