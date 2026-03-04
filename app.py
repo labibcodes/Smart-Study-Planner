@@ -5,6 +5,10 @@ from datetime import datetime
 
 app = Flask(__name__)
 
+# =========================
+# Data Persistence
+# =========================
+
 def load_data():
     if os.path.exists("data.json"):
         with open("data.json", "r") as file:
@@ -17,21 +21,28 @@ def save_data(data):
 
 targets = load_data()
 
+# =========================
+# Main Route
+# =========================
+
 @app.route("/", methods=["GET", "POST"])
 def home():
     today = datetime.today()
+    total_kebutuhan = 0
+    hasil = None
 
     if request.method == "POST":
 
         aksi = request.form.get("aksi")
 
+        # ---------- Tambah Target ----------
         if aksi == "tambah":
             nama = request.form["nama"]
-            total_jam = request.form["total_jam"]
+            total_jam = int(request.form["total_jam"])
             deadline = request.form["deadline"]
 
             targets[nama] = {
-                "total_jam": int(total_jam),
+                "total_jam": total_jam,
                 "deadline": deadline,
                 "jam_terkumpul": 0
             }
@@ -39,10 +50,12 @@ def home():
             save_data(targets)
             return redirect("/")
 
+        # ---------- Hitung Rencana ----------
         elif aksi == "hitung":
             waktu_luang = float(request.form["waktu_luang"])
+
             total_kebutuhan = sum(
-                targets[n]["total_jam"] - targets[n]["jam_terkumpul"]
+                max(targets[n]["total_jam"] - targets[n]["jam_terkumpul"], 0)
                 for n in targets
             )
 
@@ -59,24 +72,33 @@ def home():
                 hasil=hasil
             )
 
-        save_data(targets)
-        return redirect("/")
+    # =========================
+    # Smart Calculation
+    # =========================
 
     for nama in targets:
-        deadline_date = datetime.strptime(targets[nama]["deadline"], "%Y-%m-%d")
+        try:
+            deadline_date = datetime.strptime(
+                targets[nama]["deadline"],
+                "%Y-%m-%d"
+            )
+        except:
+            continue
+
         sisa_hari = (deadline_date - today).days
 
         total_jam = targets[nama]["total_jam"]
         jam_terkumpul = targets[nama]["jam_terkumpul"]
 
-        if sisa_hari > 0:
+        if sisa_hari > 0 and total_jam > 0:
+
             targets[nama]["sisa_hari"] = sisa_hari
-            targets[nama]["rekomendasi"] = (total_jam - jam_terkumpul) / sisa_hari
 
-            # Hitung progress sekarang
+            remaining = max(total_jam - jam_terkumpul, 0)
+            targets[nama]["rekomendasi"] = round(remaining / sisa_hari, 1)
+
+            # Progress
             progress_sekarang = (jam_terkumpul / total_jam) * 100
-
-            # Progress ideal sederhana (berdasarkan sisa waktu)
             progress_ideal = 100 - ((sisa_hari / (sisa_hari + 1)) * 100)
 
             if progress_sekarang >= progress_ideal:
@@ -91,7 +113,12 @@ def home():
             targets[nama]["rekomendasi"] = 0
             targets[nama]["status"] = "Deadline Lewat"
 
-    return render_template("index.html", targets=targets)
+    return render_template("index.html", targets=targets, total_kebutuhan=total_kebutuhan, hasil=hasil)
+
+
+# =========================
+# Delete Target
+# =========================
 
 @app.route("/hapus/<nama>")
 def hapus(nama):
@@ -100,13 +127,25 @@ def hapus(nama):
         save_data(targets)
     return redirect("/")
 
+
+# =========================
+# Update Progress
+# =========================
+
 @app.route("/update/<nama>", methods=["POST"])
 def update(nama):
     tambah_jam = int(request.form["tambah_jam"])
+
     if nama in targets:
         targets[nama]["jam_terkumpul"] += tambah_jam
         save_data(targets)
+
     return redirect("/")
 
+
+# =========================
+# Run App (Dev Only)
+# =========================
+
 if __name__ == "__main__":
-    app.run(debug=True)
+    app.run()
